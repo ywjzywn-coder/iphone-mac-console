@@ -1,0 +1,10 @@
+{
+  "name": "iphone-mac-console",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "start:https": "node server.js --https"
+  }
+}

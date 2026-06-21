@@ -1,0 +1,31 @@
+{
+  "name": "Mac Console",
+  "short_name": "Mac Console",
+  "description": "Use a phone or tablet as a local Mac touchpad and command panel.",
+  "start_url": "/?v=37",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#101214",
+  "theme_color": "#101214",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

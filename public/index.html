@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Mac Console" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#101214" />
+    <title>Mac Console</title>
+    <link rel="manifest" href="/manifest.webmanifest?v=37" />
+    <link rel="icon" href="/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="stylesheet" href="/styles.css?v=37" />
+  </head>
+  <body>
+    <main class="app">
+      <section id="pair" class="pair">
+        <h1>Mac Console</h1>
+        <form id="pairForm">
+          <input id="pairCode" inputmode="numeric" autocomplete="one-time-code" placeholder="配对码" />
+          <button type="submit">连接</button>
+        </form>
+        <p>在 Mac 终端窗口里看 6 位配对码。</p>
+      </section>
+
+      <section id="controls" class="controls hidden">
+        <header class="topbar">
+          <div>
+            <strong>Mac Console</strong>
+            <span id="state">已连接</span>
+          </div>
+          <div class="header-actions">
+            <button id="fullscreen" type="button">全屏</button>
+            <button id="resetPair" type="button">配对</button>
+            <button id="wake" type="button">唤醒</button>
+          </div>
+        </header>
+
+        <nav class="tabs" aria-label="控制模式">
+          <button class="active" data-tab="pad" type="button">触控板</button>
+          <button data-tab="keys" type="button">键盘</button>
+          <button data-tab="cmds" type="button">控制台</button>
+          <button data-tab="settings" type="button">设置</button>
+        </nav>
+
+        <section id="pad" class="tab active">
+          <div id="touchpad" class="touchpad">
+            <span id="padHint">一指移动</span>
+          </div>
+        </section>
+
+        <section id="keys" class="tab">
+          <textarea id="textInput" rows="4" placeholder="输入文字后发送到 Mac"></textarea>
+          <button id="sendText" type="button">发送文字</button>
+          <div class="grid">
+            <button data-key="escape" type="button">Esc</button>
+            <button data-key="tab" type="button">Tab</button>
+            <button data-key="return" type="button">Return</button>
+            <button data-key="delete" type="button">Delete</button>
+            <button data-key="up" type="button">↑</button>
+            <button data-key="down" type="button">↓</button>
+            <button data-key="left" type="button">←</button>
+            <button data-key="right" type="button">→</button>
+          </div>
+        </section>
+
+        <section id="cmds" class="tab">
+          <div class="grid">
+            <button data-shortcut="cmd+space" type="button">Spotlight</button>
+            <button data-shortcut="cmd+tab" type="button">切 App</button>
+            <button data-action="mission" type="button">调度中心</button>
+            <button data-action="notification" type="button">通知中心</button>
+            <button data-shortcut="ctrl+down" type="button">App Expose</button>
+            <button data-shortcut="ctrl+left" type="button">左桌面</button>
+            <button data-shortcut="ctrl+right" type="button">右桌面</button>
+            <button data-action="showDesktop" type="button">显示桌面</button>
+            <button data-action="restoreDesktop" type="button">恢复桌面</button>
+            <button data-shortcut="cmd+[" type="button">返回</button>
+            <button data-shortcut="cmd+]" type="button">前进</button>
+            <button data-shortcut="cmd+w" type="button">关窗口</button>
+            <button data-shortcut="cmd+q" type="button">退出 App</button>
+            <button data-shortcut="cmd+c" type="button">复制</button>
+            <button data-shortcut="cmd+v" type="button">粘贴</button>
+            <button data-shortcut="cmd+shift+4" type="button">截图</button>
+            <button data-shortcut="cmd+`" type="button">同 App 窗口</button>
+          </div>
+        </section>
+
+        <section id="settings" class="tab">
+          <label class="setting speed-setting">
+            <span>指针速度</span>
+            <input id="speed" type="range" min="0.3" max="4" step="0.05" />
+            <output id="speedValue">1.25x</output>
+          </label>
+          <label class="setting check">
+            <span>自然滚动</span>
+            <input id="naturalScroll" type="checkbox" />
+          </label>
+          <label class="setting check">
+            <span>默认横屏</span>
+            <input id="defaultLandscape" type="checkbox" />
+          </label>
+          <label class="setting check">
+            <span>拖拽锁定</span>
+            <input id="dragLockEnabled" type="checkbox" />
+          </label>
+          <label class="setting check">
+            <span>轻微震动反馈</span>
+            <input id="haptics" type="checkbox" />
+          </label>
+          <div class="gesture-list">
+            <p>一指移动 / 点按左键 / 双击 / 长按拖拽</p>
+            <p>两指拖动滚动 / 点按右键 / 捏合缩放 / 右边缘扫入通知中心</p>
+            <p>三指或四指上滑调度中心，下滑 App Expose，左右切桌面</p>
+            <p>四指张开显示桌面，四指捏合恢复桌面</p>
+          </div>
+          <button id="resetPairSettings" type="button">重新配对</button>
+        </section>
+
+        <button id="quickToggle" class="quick-toggle" type="button" aria-label="更多控制" aria-expanded="false">...</button>
+        <div id="quickPanel" class="quick-panel hidden">
+          <div class="quick-header">
+            <span>快捷控制</span>
+            <button id="quickClose" type="button" aria-label="关闭快捷控制">×</button>
+          </div>
+          <label class="quick-setting quick-speed">
+            <span>指针速度</span>
+            <input id="speedQuick" type="range" min="0.3" max="4" step="0.05" />
+            <output id="speedQuickValue">1.25x</output>
+          </label>
+          <label class="quick-setting">
+            <span>默认横屏</span>
+            <input id="defaultLandscapeQuick" type="checkbox" />
+          </label>
+          <label class="quick-setting">
+            <span>拖拽锁定</span>
+            <input id="dragLockQuick" type="checkbox" />
+          </label>
+          <button id="fullscreenQuick" class="quick-action" type="button">全屏</button>
+        </div>
+        <div id="quickBackdrop" class="quick-backdrop hidden"></div>
+        <div id="rotateHint" class="rotate-hint hidden">
+          <div>请横过来使用</div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js?v=37"></script>
+  </body>
+</html>
