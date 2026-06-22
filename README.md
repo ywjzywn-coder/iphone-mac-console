@@ -1,100 +1,184 @@
 # iPhone Mac Console
 
-Use an old iPhone as a local Mac touchpad, keyboard, and command panel.
+把旧 iPhone / Android 手机变成 Mac 的本地控制台：可以当触控板、键盘、快捷命令面板使用。
 
-## Run
+适合场景：
+
+- Mac mini / 台式 Mac 离屏控制
+- 手机临时当触控板和键盘
+- 局域网内用手机控制 Mac
+- 旧手机改造成桌面控制器
+
+## 功能特性
+
+- 手机浏览器直接打开，无需安装 App
+- 支持 iPhone / iPad / Android
+- 支持 PWA，可添加到手机桌面
+- 一指移动光标、点击、双击
+- 一指长按拖拽窗口/文件/滑块
+- 两指滚动、两指停按右键
+- 两指左右滑动浏览器/应用前进后退
+- 两指捏合缩放
+- 三指/四指切换桌面、调度中心、App Expose
+- 手机端键盘输入到 Mac
+- 快捷命令面板
+- 指针速度、滚动速度可调
+- 横屏模式、全屏模式
+- Android 性能模式
+- macOS 窗口吸附预览
+- 配对码保护，避免局域网内误连
+
+## 快速开始
+
+### 方式一：Node 版本
 
 ```sh
 npm start
 ```
 
-You can also double-click `start-mac-console.command` in Finder.
+启动后，终端会打印一个局域网地址，例如：
 
-Open the printed `http://...:8787` URL on the iPhone, then enter the 6 digit pair code from the Mac terminal.
+```text
+http://192.168.x.x:8787
+```
 
-## Mac Menu Bar App
+用手机浏览器打开这个地址，然后输入 Mac 终端显示的 6 位配对码。
 
-Build and launch the resident macOS host app:
+### 方式二：双击启动
+
+在 Finder 里双击：
+
+```text
+start-mac-console.command
+```
+
+### 方式三：macOS 菜单栏 App
+
+构建并启动常驻菜单栏版本：
 
 ```sh
 ./script/build_and_run.sh
 ```
 
-The app bundle is staged at:
+构建后的 App 位于：
 
 ```text
 dist/Mac Console Host.app
 ```
 
-It runs as a menu bar app, starts the local server, shows the current pair code, copies or opens the phone URL, restarts the server, opens Accessibility settings, and can install or remove a LaunchAgent for login startup.
+菜单栏 App 可以：
 
-Runtime status is written to:
+- 启动/重启本地控制服务器
+- 显示当前配对码
+- 复制或打开手机访问地址
+- 打开辅助功能权限设置
+- 安装/移除开机自启动 LaunchAgent
+
+运行状态会写入：
 
 ```text
 .runtime/status.json
 ```
 
-For Android PWA installation, use HTTPS:
+## Android PWA / HTTPS
+
+Android 如果想显示真正的「安装 App」选项，通常需要 HTTPS：
 
 ```sh
 npm run start:https
 ```
 
-Open the printed `https://...:8788` URL. Android usually requires a trusted HTTPS certificate before it will show a real Install app option. This project generates `certs/localhost-cert.pem`; install and trust that certificate on the phone, or use a trusted HTTPS tunnel.
+然后打开终端打印的：
 
-## Install On Phone
+```text
+https://...:8788
+```
 
-- iPhone/iPad: open the URL in Safari, share, then Add to Home Screen.
-- Android: open the URL in Chrome, menu, then Add to Home screen or Install app when available.
+项目会生成本地证书到 `certs/localhost-cert.pem`。如果手机不信任证书，需要把证书安装并设为可信，或者使用可信 HTTPS 隧道。
 
-The app includes PWA metadata and standalone display settings. iOS can usually launch the home-screen copy without Safari controls over local HTTP. Android may require HTTPS for a true installed PWA; local HTTP still works as a browser shortcut.
+iPhone/iPad 通常可以在局域网 HTTP 下直接「添加到主屏幕」。
 
-Portrait and landscape are both supported. The touchpad stays as the main full-screen surface in both orientations, with controls tucked into the floating drawer.
+## 安装到手机桌面
 
-Enable Default Landscape in Settings or the floating drawer if you mostly use the app sideways. Browsers that support the Screen Orientation API will try to lock landscape; older iOS/Safari builds may only show a rotate hint because they do not allow web apps to force orientation.
+### iPhone / iPad
 
-Cursor speed is adjustable from Settings or the floating drawer, from `0.30x` to `4x`. Scroll speed is adjustable separately from `0.8x` to `8x`.
+1. 用 Safari 打开 Mac 打印出来的地址
+2. 点分享按钮
+3. 选择「添加到主屏幕」
 
-Android Performance Mode is available in Settings and the floating drawer. It coalesces touch moves by animation frame and uses calmer send intervals for Android Chrome devices that feel jittery.
+### Android
 
-Use the Full Screen button in the header or the floating drawer to request browser fullscreen. On iPhone Safari, where web pages cannot always force true fullscreen, the app falls back to an immersive mode that keeps the touchpad stretched to the visible screen and nudges the browser chrome out of the way.
+1. 用 Chrome 打开地址
+2. 点右上角菜单
+3. 选择「添加到主屏幕」或「安装应用」
 
-## Gestures
+## 手势说明
 
-- One finger: move cursor.
-- One finger tap: left click.
-- One finger double tap: double click.
-- One finger long press then move: drag windows, files, sliders, or selected text.
-- Two finger press-and-hold: right click.
-- Two finger drag: scroll.
-- Two finger horizontal swipe: browser/app back or forward with `Command` + `[` / `]`.
-- Two finger pinch: zoom in or out using `Command` + `+` / `-`.
-- Three finger swipe up: Mission Control, using the native Mission Control app with `Control` + `Up` as a fallback.
-- Three finger swipe down: App Expose.
-- Three or four finger swipe left or right: switch desktops.
-- Floating `...` drawer: fullscreen, pointer speed, Default Landscape, and Drag Lock.
-- Keyboard, command, and settings panels stay available behind the bottom tabs while the main pad stays large.
+- 一指移动：移动 Mac 光标
+- 一指点击：左键单击
+- 一指双击：左键双击
+- 一指长按后移动：拖拽窗口、文件、滑块或选中文本
+- 两指停按：右键
+- 两指拖动：滚动
+- 两指水平滑动：浏览器/应用后退或前进（`Command + [` / `Command + ]`）
+- 两指捏合：缩放（`Command + +` / `Command + -`）
+- 三指上滑：调度中心 Mission Control
+- 三指下滑：App Expose
+- 三指或四指左右滑：切换桌面
+- 浮动 `...` 抽屉：全屏、指针速度、滚动速度、默认横屏、拖拽锁定、Android 性能模式
 
-Unsupported or approximate:
+## 手机端设置
 
-- Force Click / pressure sensitivity: phone browsers do not expose Mac trackpad pressure.
-- True inertial scrolling: the app can send scroll deltas, but cannot perfectly emulate Apple trackpad hardware momentum.
-- Launchpad pinch: macOS does not expose a stable public "become a trackpad" API, and this Mac does not provide a Launchpad app that can be opened directly. Mapping it to a function key would depend on the user's keyboard settings.
-- Show Desktop spread: phone browsers do not expose the exact thumb-plus-fingers gesture shape reliably, so it is better as a command button than a default gesture.
-- Rotate gesture: not useful system-wide and not exposed consistently across iOS/Android browsers.
-- Three finger drag as a distinct Mac setting: Safari/Chrome only report touch points to the web page, not the macOS accessibility setting. The app uses one-finger long-press drag instead.
-- Real Apple Trackpad device identity: macOS does not expose a public API for a web app to become a hardware trackpad.
+- **指针速度**：`0.30x` 到 `4x`
+- **滚动速度**：`0.8x` 到 `8x`
+- **自然滚动**：切换滚动方向
+- **默认横屏**：更适合手机横放当触控板
+- **拖拽锁定**：降低长按拖拽时误松手
+- **Android 性能模式**：减少 Android Chrome 上的抖动和卡顿
+- **轻微震动反馈**：触控反馈
 
-## macOS Permission
+## macOS 权限
 
-If the web UI connects but the Mac does not move or type, allow the terminal app that runs this server in:
+如果手机界面已连接，但 Mac 光标不动、不能点击或输入，需要打开权限：
 
-System Settings > Privacy & Security > Accessibility
+```text
+系统设置 > 隐私与安全性 > 辅助功能
+```
 
-Then restart the server.
+允许运行服务器的终端 App，或允许菜单栏 App。然后重启服务。
 
-## Notes
+## 不支持或近似支持的功能
 
-- The server listens on the local network.
-- Pairing uses a fresh code and session token each run unless `PAIR_CODE` is set.
-- Camera and microphone are intentionally left to DroidCam/Camo/OBS for now. This tool focuses on control.
+- Force Click / 压感：手机浏览器无法提供 Mac 触控板压力数据
+- 真正的惯性滚动：可以发送滚动增量，但无法完全模拟 Apple 触控板硬件动量
+- Launchpad 捏合：macOS 没有稳定公开 API 让网页变成系统触控板
+- 显示桌面的完整手势形状：手机浏览器无法稳定识别类似拇指+多指展开的复杂形状
+- 旋转手势：系统级用途有限，浏览器暴露也不稳定
+- 三指拖移系统设置：网页无法读取 macOS 辅助功能里的三指拖移设置
+- 伪装成真实 Apple Trackpad：macOS 没有公开 API 让 Web App 变成硬件触控板
+
+## 安全说明
+
+- 服务只监听本地网络
+- 每次启动会生成新的配对码和 session token，除非手动设置 `PAIR_CODE`
+- `.runtime/`、`certs/`、`.build/`、`dist/`、`.codex/` 等本地环境和构建产物不会提交到 GitHub
+- 摄像头和麦克风功能暂时交给 DroidCam / Camo / OBS 等专用工具，本项目专注于「手机控制 Mac」
+
+## 开发验证
+
+```sh
+swift build
+node --check server.js
+node --check public/app.js
+```
+
+## 项目结构
+
+```text
+Sources/MacConsoleHost/   macOS 本地输入和菜单栏 Host
+public/                   手机端网页/PWA
+server.js                 Node 本地服务器
+native/                   原生控制相关文件
+script/                   构建和启动脚本
+tools/                    辅助检查工具
+```
