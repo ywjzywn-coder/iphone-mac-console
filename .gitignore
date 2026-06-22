@@ -1,8 +1,14 @@
+# Build outputs
 .build/
 dist/
-.runtime/
 bin/
-certs/
 node_modules/
 output/
+
+# Local runtime / generated state
+.runtime/
+certs/
+.codex/
+
+# macOS noise
 .DS_Store

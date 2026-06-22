@@ -1,3 +1,0 @@
-[[actions]]
-name = "Run"
-command = "./script/build_and_run.sh"
