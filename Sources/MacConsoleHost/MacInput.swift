@@ -14,8 +14,9 @@ final class MacInputController: @unchecked Sendable {
     private var postEventAccessGranted = false
     private var pressedButton: CGMouseButton?
     private var dragSessionStartedAt = Date.distantPast
-    private var lastSnapAt = Date.distantPast
-    private var lastSnapZone: SnapZone?
+    private var pendingSnapZone: SnapZone?
+    private var pendingSnapFrame: CGRect?
+    private var snapPreviewWindow: NSPanel?
     private var hiddenDesktopWindows: [AXUIElement] = []
     private let mouseSource = CGEventSource(stateID: .hidSystemState)
 
@@ -27,15 +28,17 @@ final class MacInputController: @unchecked Sendable {
         case "move":
             moveMouse(dx: number(command["dx"]), dy: number(command["dy"]))
         case "mouseDown":
-            mouseDown(button: command["button"] as? String ?? "left")
+            mouseDown()
         case "mouseUp":
-            mouseUp(button: command["button"] as? String ?? "left")
+            mouseUp()
         case "drag":
             dragMouse(dx: number(command["dx"]), dy: number(command["dy"]))
         case "click":
-            click(button: command["button"] as? String ?? "left")
+            click()
+        case "rightClick":
+            rightClick()
         case "scroll":
-            scroll(dy: Int32(number(command["dy"])))
+            scroll(dy: Int32(number(command["dy"]).rounded()))
         case "text":
             typeText(command["value"] as? String ?? "")
         case "key":
@@ -79,9 +82,10 @@ final class MacInputController: @unchecked Sendable {
     private func postMouse(_ type: CGEventType, button: CGMouseButton, at point: CGPoint, dx: Double = 0, dy: Double = 0) {
         guard ensurePostEventAccess() else { return }
         let event = CGEvent(mouseEventSource: mouseSource, mouseType: type, mouseCursorPosition: point, mouseButton: button)
-        if pressedButton == .left || type == .leftMouseDown || type == .leftMouseDragged {
+        event?.flags = []
+        if button == .left || type == .leftMouseDown || type == .leftMouseUp || type == .leftMouseDragged {
             event?.setIntegerValueField(.mouseEventButtonNumber, value: 0)
-        } else if pressedButton == .right || type == .rightMouseDown || type == .rightMouseDragged {
+        } else if button == .right || type == .rightMouseDown || type == .rightMouseUp || type == .rightMouseDragged {
             event?.setIntegerValueField(.mouseEventButtonNumber, value: 1)
         }
         event?.setIntegerValueField(.mouseEventDeltaX, value: Int64(dx.rounded()))
@@ -103,58 +107,70 @@ final class MacInputController: @unchecked Sendable {
         CGWarpMouseCursorPosition(next)
     }
 
-    private func mouseDown(button: String) {
+    private func mouseDown() {
         let point = currentPoint()
-        if button == "right" {
-            pressedButton = .right
-            postMouse(.rightMouseDown, button: .right, at: point)
-        } else {
-            pressedButton = .left
-            dragSessionStartedAt = Date()
-            lastSnapZone = nil
-            postMouse(.leftMouseDown, button: .left, at: point)
-        }
+        releaseSecondaryButtonIfNeeded(at: point)
+        pressedButton = .left
+        dragSessionStartedAt = Date()
+        hideSnapPreview()
+        postMouse(.leftMouseDown, button: .left, at: point)
     }
 
-    private func mouseUp(button: String) {
+    private func mouseUp() {
         let point = currentPoint()
-        if button == "right" {
-            postMouse(.rightMouseUp, button: .right, at: point)
+        let shouldCommitSnap = pressedButton == .left
+        postMouse(.leftMouseUp, button: .left, at: point)
+        releaseSecondaryButtonIfNeeded(at: point)
+        if shouldCommitSnap {
+            commitSnapPreview()
         } else {
-            postMouse(.leftMouseUp, button: .left, at: point)
+            hideSnapPreview()
         }
         pressedButton = nil
         dragSessionStartedAt = Date.distantPast
-        lastSnapZone = nil
     }
 
     private func dragMouse(dx: Double, dy: Double) {
         guard ensurePostEventAccess() else { return }
         let point = currentPoint()
         let next = CGPoint(x: point.x + dx, y: point.y + dy)
-        if pressedButton == .right {
-            postMouse(.rightMouseDragged, button: .right, at: next, dx: dx, dy: dy)
-        } else {
-            if pressedButton == nil { pressedButton = .left }
-            postMouse(.leftMouseDragged, button: .left, at: next, dx: dx, dy: dy)
+        if pressedButton == nil {
+            pressedButton = .left
+            dragSessionStartedAt = Date()
         }
+        postMouse(.leftMouseDragged, button: .left, at: next, dx: dx, dy: dy)
         CGWarpMouseCursorPosition(next)
         if pressedButton == .left {
-            maybeSnapFrontWindow(at: next)
+            updateSnapPreview(at: next)
         }
     }
 
-    private func click(button: String) {
+    private func click() {
         let point = currentPoint()
-        if button == "right" {
-            postButtonDownUp(downType: .rightMouseDown, upType: .rightMouseUp, button: .right, at: point)
-        } else {
-            postButtonDownUp(downType: .leftMouseDown, upType: .leftMouseUp, button: .left, at: point)
+        releaseSecondaryButtonIfNeeded(at: point)
+        postButtonDownUp(downType: .leftMouseDown, upType: .leftMouseUp, button: .left, at: point)
+        releaseSecondaryButtonIfNeeded(at: point)
+    }
+
+    private func rightClick() {
+        let point = currentPoint()
+        if pressedButton == .left {
+            postMouse(.leftMouseUp, button: .left, at: point)
+            pressedButton = nil
         }
+        postButtonDownUp(downType: .rightMouseDown, upType: .rightMouseUp, button: .right, at: point)
+    }
+
+    private func releaseSecondaryButtonIfNeeded(at point: CGPoint) {
+        if pressedButton == .right {
+            pressedButton = nil
+        }
+        postMouse(.rightMouseUp, button: .right, at: point)
     }
 
     private func scroll(dy: Int32) {
         guard ensurePostEventAccess() else { return }
+        guard dy != 0 else { return }
         let event = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: dy, wheel2: 0, wheel3: 0)
         event?.post(tap: .cghidEventTap)
     }
@@ -251,26 +267,82 @@ final class MacInputController: @unchecked Sendable {
         postKey(code: 103, flags: .maskSecondaryFn)
     }
 
-    private func maybeSnapFrontWindow(at point: CGPoint) {
+    private func updateSnapPreview(at point: CGPoint) {
         let now = Date()
-        guard now.timeIntervalSince(dragSessionStartedAt) > 0.18 else { return }
+        guard now.timeIntervalSince(dragSessionStartedAt) > 0.18 else {
+            hideSnapPreview()
+            return
+        }
 
         guard let displayID = displayContaining(point),
               let zone = snapZone(for: point, displayID: displayID) else {
-            lastSnapZone = nil
+            hideSnapPreview()
             return
         }
 
-        if zone == lastSnapZone, now.timeIntervalSince(lastSnapAt) < 1.2 {
-            return
-        }
-
-        guard let window = frontmostWindow() else { return }
         let frame = snapFrame(for: zone, displayID: displayID)
-        guard setWindow(window, frame: frame) else { return }
+        pendingSnapZone = zone
+        pendingSnapFrame = frame
+        showSnapPreview(frame: frame, displayID: displayID)
+    }
 
-        lastSnapZone = zone
-        lastSnapAt = now
+    private func commitSnapPreview() {
+        defer { hideSnapPreview() }
+        guard pendingSnapZone != nil,
+              let frame = pendingSnapFrame,
+              let window = frontmostWindow() else {
+            return
+        }
+        _ = setWindow(window, frame: frame)
+    }
+
+    private func showSnapPreview(frame: CGRect, displayID: CGDirectDisplayID) {
+        let previewFrame = appKitFrame(from: frame, displayID: displayID).insetBy(dx: 8, dy: 8)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let panel = self.snapPreviewWindow ?? self.makeSnapPreviewWindow(frame: previewFrame)
+            self.snapPreviewWindow = panel
+            if panel.frame != previewFrame {
+                panel.setFrame(previewFrame, display: true, animate: true)
+            }
+            panel.orderFrontRegardless()
+        }
+    }
+
+    private func hideSnapPreview() {
+        pendingSnapZone = nil
+        pendingSnapFrame = nil
+        Task { @MainActor [weak self] in
+            self?.snapPreviewWindow?.orderOut(nil)
+        }
+    }
+
+    @MainActor
+    private func makeSnapPreviewWindow(frame: CGRect) -> NSPanel {
+        let panel = NSPanel(
+            contentRect: frame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.level = .statusBar
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        panel.contentView = SnapPreviewView(frame: NSRect(origin: .zero, size: frame.size))
+        return panel
+    }
+
+    private func appKitFrame(from quartzFrame: CGRect, displayID: CGDirectDisplayID) -> CGRect {
+        let bounds = CGDisplayBounds(displayID)
+        return CGRect(
+            x: quartzFrame.minX,
+            y: bounds.maxY - quartzFrame.maxY,
+            width: quartzFrame.width,
+            height: quartzFrame.height
+        )
     }
 
     private func snapZone(for point: CGPoint, displayID: CGDirectDisplayID) -> SnapZone? {
@@ -435,6 +507,24 @@ final class MacInputController: @unchecked Sendable {
         } catch {
             return false
         }
+    }
+}
+
+private final class SnapPreviewView: NSView {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        autoresizingMask = [.width, .height]
+        wantsLayer = true
+        layer?.cornerRadius = 18
+        layer?.cornerCurve = .continuous
+        layer?.masksToBounds = true
+        layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.16).cgColor
+        layer?.borderColor = NSColor.systemBlue.withAlphaComponent(0.62).cgColor
+        layer?.borderWidth = 3
+    }
+
+    required init?(coder: NSCoder) {
+        nil
     }
 }
 

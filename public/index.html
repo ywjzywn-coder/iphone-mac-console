@@ -9,10 +9,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#101214" />
     <title>Mac Console</title>
-    <link rel="manifest" href="/manifest.webmanifest?v=37" />
+    <link rel="manifest" href="/manifest.webmanifest?v=50" />
     <link rel="icon" href="/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <link rel="stylesheet" href="/styles.css?v=37" />
+    <link rel="stylesheet" href="/styles.css?v=50" />
   </head>
   <body>
     <main class="app">
@@ -94,6 +94,11 @@
             <input id="speed" type="range" min="0.3" max="4" step="0.05" />
             <output id="speedValue">1.25x</output>
           </label>
+          <label class="setting speed-setting">
+            <span>滚动速度</span>
+            <input id="scrollSpeed" type="range" min="0.8" max="8" step="0.1" />
+            <output id="scrollSpeedValue">3.6x</output>
+          </label>
           <label class="setting check">
             <span>自然滚动</span>
             <input id="naturalScroll" type="checkbox" />
@@ -107,38 +112,58 @@
             <input id="dragLockEnabled" type="checkbox" />
           </label>
           <label class="setting check">
+            <span>安卓性能模式</span>
+            <input id="androidPerformance" type="checkbox" />
+          </label>
+          <label class="setting check">
             <span>轻微震动反馈</span>
             <input id="haptics" type="checkbox" />
           </label>
           <div class="gesture-list">
             <p>一指移动 / 点按左键 / 双击 / 长按拖拽</p>
-            <p>两指拖动滚动 / 点按右键 / 捏合缩放 / 右边缘扫入通知中心</p>
+            <p>两指停按右键 / 拖动滚动 / 捏合缩放 / 右边缘扫入通知中心</p>
             <p>三指或四指上滑调度中心，下滑 App Expose，左右切桌面</p>
             <p>四指张开显示桌面，四指捏合恢复桌面</p>
           </div>
           <button id="resetPairSettings" type="button">重新配对</button>
         </section>
 
-        <button id="quickToggle" class="quick-toggle" type="button" aria-label="更多控制" aria-expanded="false">...</button>
+        <button id="quickToggle" class="quick-toggle" type="button" aria-label="更多控制" aria-expanded="false">
+          <span class="quick-toggle-icon" aria-hidden="true"></span>
+        </button>
         <div id="quickPanel" class="quick-panel hidden">
           <div class="quick-header">
             <span>快捷控制</span>
-            <button id="quickClose" type="button" aria-label="关闭快捷控制">×</button>
+            <button id="quickClose" type="button" aria-label="关闭快捷控制">
+              <span class="quick-close-icon" aria-hidden="true"></span>
+            </button>
           </div>
           <label class="quick-setting quick-speed">
             <span>指针速度</span>
             <input id="speedQuick" type="range" min="0.3" max="4" step="0.05" />
             <output id="speedQuickValue">1.25x</output>
           </label>
-          <label class="quick-setting">
+          <label class="quick-setting quick-speed">
+            <span>滚动速度</span>
+            <input id="scrollSpeedQuick" type="range" min="0.8" max="8" step="0.1" />
+            <output id="scrollSpeedQuickValue">3.6x</output>
+          </label>
+          <label class="quick-setting quick-switch">
             <span>默认横屏</span>
             <input id="defaultLandscapeQuick" type="checkbox" />
           </label>
-          <label class="quick-setting">
+          <label class="quick-setting quick-switch">
             <span>拖拽锁定</span>
             <input id="dragLockQuick" type="checkbox" />
           </label>
-          <button id="fullscreenQuick" class="quick-action" type="button">全屏</button>
+          <label class="quick-setting quick-switch">
+            <span>安卓性能模式</span>
+            <input id="androidPerformanceQuick" type="checkbox" />
+          </label>
+          <button id="fullscreenQuick" class="quick-action" type="button">
+            <span class="quick-action-icon" aria-hidden="true"></span>
+            <span class="quick-action-label">全屏</span>
+          </button>
         </div>
         <div id="quickBackdrop" class="quick-backdrop hidden"></div>
         <div id="rotateHint" class="rotate-hint hidden">
@@ -147,6 +172,6 @@
       </section>
     </main>
 
-    <script src="/app.js?v=37"></script>
+    <script src="/app.js?v=50"></script>
   </body>
 </html>

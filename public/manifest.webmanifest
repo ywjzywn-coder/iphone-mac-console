@@ -2,7 +2,7 @@
   "name": "Mac Console",
   "short_name": "Mac Console",
   "description": "Use a phone or tablet as a local Mac touchpad and command panel.",
-  "start_url": "/?v=37",
+  "start_url": "/?v=50",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

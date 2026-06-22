@@ -328,9 +328,9 @@ header strong {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 46%),
     var(--surface);
-  font-size: 24px;
-  line-height: 1;
-  padding: 0 0 6px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   color: rgba(25, 27, 29, 0.78);
   backdrop-filter: blur(16px);
   box-shadow:
@@ -343,7 +343,50 @@ header strong {
     linear-gradient(180deg, rgba(255, 255, 255, 0.84), transparent 46%),
     linear-gradient(145deg, #e5e8ea, #cdd3d6);
   color: rgba(24, 26, 28, 0.9);
-  padding-bottom: 3px;
+}
+
+.quick-toggle-icon {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  display: block;
+  color: inherit;
+}
+
+.quick-toggle-icon::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    -9px 0 0 currentColor,
+    9px 0 0 currentColor;
+}
+
+.quick-toggle.open .quick-toggle-icon::before,
+.quick-toggle.open .quick-toggle-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: none;
+}
+
+.quick-toggle.open .quick-toggle-icon::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.quick-toggle.open .quick-toggle-icon::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .quick-panel {
@@ -374,24 +417,51 @@ header strong {
 
 .quick-header {
   display: grid;
-  grid-template-columns: 1fr 38px;
+  grid-template-columns: 1fr 40px;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
-  padding: 0 2px 8px;
+  min-height: 44px;
+  padding: 0 0 10px;
   border-bottom: 1px solid var(--inner-line);
   color: rgba(27, 29, 32, 0.72);
   font-weight: 750;
 }
 
 .quick-header button {
-  width: 38px;
-  height: 38px;
-  min-height: 38px;
-  padding: 0 0 2px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
   border-radius: 50%;
-  font-size: 24px;
-  line-height: 1;
+}
+
+.quick-close-icon {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  color: rgba(27, 29, 32, 0.72);
+}
+
+.quick-close-icon::before,
+.quick-close-icon::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.quick-close-icon::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.quick-close-icon::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .quick-section {
@@ -409,7 +479,7 @@ header strong {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  min-height: 48px;
+  min-height: 52px;
   padding: 0 12px;
   border: 1px solid var(--inner-line);
   border-radius: var(--control-radius);
@@ -418,14 +488,88 @@ header strong {
   font-weight: 650;
 }
 
-.quick-setting input {
+.quick-switch input {
+  appearance: none;
+  position: relative;
+  width: 46px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(105, 112, 119, 0.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.54), transparent 52%),
+    rgba(173, 180, 185, 0.48);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
+.quick-switch input::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(231, 235, 237, 0.96));
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 140ms ease;
+}
+
+.quick-switch input:checked {
+  border-color: rgba(36, 124, 108, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 52%),
+    rgba(36, 124, 108, 0.78);
+}
+
+.quick-switch input:checked::before {
+  transform: translateX(18px);
+}
+
+.quick-setting:not(.quick-switch) input:not([type="range"]) {
   width: 26px;
   height: 26px;
   accent-color: var(--accent);
 }
 
 .quick-action {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: 8px;
   width: 100%;
+  min-height: 52px;
+  text-align: left;
+}
+
+.quick-action-icon {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 24px;
+  color: rgba(27, 29, 32, 0.76);
+}
+
+.quick-action-icon::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2.4px solid currentColor;
+  border-radius: 5px;
+}
+
+.quick-action-icon::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border: 2px solid currentColor;
+  border-radius: 7px;
+  opacity: 0.28;
 }
 
 .quick-action.active,
@@ -437,8 +581,8 @@ header strong {
 }
 
 .quick-speed {
-  grid-template-columns: 82px minmax(96px, 1fr) 48px;
-  gap: 8px;
+  grid-template-columns: 82px minmax(104px, 1fr) 50px;
+  gap: 10px;
 }
 
 .quick-speed input {
@@ -446,6 +590,36 @@ header strong {
   height: auto;
   padding: 0;
   accent-color: var(--accent);
+}
+
+.quick-speed input[type="range"] {
+  appearance: none;
+  height: 26px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.quick-speed input[type="range"]::-webkit-slider-runnable-track {
+  height: 7px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent),
+    rgba(110, 119, 126, 0.28);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14);
+}
+
+.quick-speed input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -7.5px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(224, 229, 232, 0.96));
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .quick-speed output,
@@ -681,7 +855,11 @@ header strong {
     min-height: 50px;
     right: max(12px, env(safe-area-inset-right));
     bottom: max(12px, env(safe-area-inset-bottom));
-    font-size: 22px;
+  }
+
+  .quick-toggle-icon {
+    width: 26px;
+    height: 26px;
   }
 
   .quick-panel {

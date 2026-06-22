@@ -8,9 +8,12 @@ const padHint = document.querySelector("#padHint");
 const textInput = document.querySelector("#textInput");
 const speedInput = document.querySelector("#speed");
 const speedValue = document.querySelector("#speedValue");
+const scrollSpeedInput = document.querySelector("#scrollSpeed");
+const scrollSpeedValue = document.querySelector("#scrollSpeedValue");
 const naturalScrollInput = document.querySelector("#naturalScroll");
 const defaultLandscapeInput = document.querySelector("#defaultLandscape");
 const dragLockEnabledInput = document.querySelector("#dragLockEnabled");
+const androidPerformanceInput = document.querySelector("#androidPerformance");
 const hapticsInput = document.querySelector("#haptics");
 const resetPairButton = document.querySelector("#resetPair");
 const resetPairSettingsButton = document.querySelector("#resetPairSettings");
@@ -21,22 +24,34 @@ const quickBackdrop = document.querySelector("#quickBackdrop");
 const quickClose = document.querySelector("#quickClose");
 const speedQuick = document.querySelector("#speedQuick");
 const speedQuickValue = document.querySelector("#speedQuickValue");
+const scrollSpeedQuick = document.querySelector("#scrollSpeedQuick");
+const scrollSpeedQuickValue = document.querySelector("#scrollSpeedQuickValue");
 const defaultLandscapeQuick = document.querySelector("#defaultLandscapeQuick");
 const dragLockQuick = document.querySelector("#dragLockQuick");
+const androidPerformanceQuick = document.querySelector("#androidPerformanceQuick");
 const fullscreenQuick = document.querySelector("#fullscreenQuick");
 const rotateHint = document.querySelector("#rotateHint");
 
 const SPEED_MIN = 0.3;
 const SPEED_MAX = 4;
-const APP_VERSION = "v37";
+const SCROLL_SPEED_MIN = 0.8;
+const SCROLL_SPEED_MAX = 8;
+const SCROLL_SPEED_DEFAULT = 3.6;
+const APP_VERSION = "v50";
 const TAP_MAX_MS = 420;
-const TWO_FINGER_TAP_MAX_MS = 320;
+const RIGHT_CLICK_HOLD_MS = 70;
+const RIGHT_CLICK_TAP_MAX_MS = 260;
+const RIGHT_CLICK_MAX_DISTANCE = 5;
+const RIGHT_CLICK_MIN_DISTANCE = 28;
+const RIGHT_CLICK_JOIN_MAX_MS = 220;
+const RIGHT_CLICK_SCROLL_GUARD_DISTANCE = 2.4;
 const DRAG_HOLD_MS = 520;
 const TAP_MAX_DISTANCE = 14;
 const EDGE_SWIPE_ZONE = 54;
 const EDGE_SWIPE_DISTANCE = 34;
 const DESKTOP_SWIPE_DISTANCE = 22;
 const DESKTOP_PINCH_DISTANCE = 16;
+const SCROLL_START_DISTANCE = 4;
 
 let token = localStorage.getItem("mac-console-token") || "";
 let rememberToken = localStorage.getItem("mac-console-remember-token") || "";
@@ -49,8 +64,15 @@ let reconnectAttempts = 0;
 let wsGeneration = 0;
 let lastSent = 0;
 let lastDragSent = 0;
+let lastScrollSent = 0;
 let lastSystemGestureAt = 0;
 let pendingMove = { dx: 0, dy: 0 };
+let pendingScrollY = 0;
+let pendingMotionFlushTimer = 0;
+let pendingMotionFlushKind = "";
+let pendingScrollFlushTimer = 0;
+let pendingTouchMove = null;
+let pendingTouchFrame = 0;
 let gesture = null;
 let pointerGesture = null;
 let lastTap = { at: 0, x: 0, y: 0 };
@@ -58,9 +80,11 @@ let dragLock = { active: false };
 let immersiveFullscreen = false;
 let settings = {
   speed: clampSpeed(Number(localStorage.getItem("mac-console-speed") || 1.25)),
+  scrollSpeed: clampScrollSpeed(Number(localStorage.getItem("mac-console-scroll-speed") || SCROLL_SPEED_DEFAULT)),
   naturalScroll: localStorage.getItem("mac-console-natural-scroll") !== "false",
   defaultLandscape: localStorage.getItem("mac-console-default-landscape") === "true",
   dragLockEnabled: localStorage.getItem("mac-console-drag-lock") === "true",
+  androidPerformance: localStorage.getItem("mac-console-android-performance") === "true",
   haptics: localStorage.getItem("mac-console-haptics") !== "false"
 };
 
@@ -236,6 +260,14 @@ speedQuick.addEventListener("input", () => {
   setSpeed(Number(speedQuick.value));
 });
 
+scrollSpeedQuick?.addEventListener("input", () => {
+  setScrollSpeed(Number(scrollSpeedQuick.value));
+});
+
+scrollSpeedInput?.addEventListener("input", () => {
+  setScrollSpeed(Number(scrollSpeedInput.value));
+});
+
 naturalScrollInput.addEventListener("change", () => {
   setNaturalScroll(naturalScrollInput.checked);
 });
@@ -250,6 +282,8 @@ defaultLandscapeQuick.addEventListener("change", () => {
 
 bindDragLockToggle(dragLockEnabledInput);
 bindDragLockToggle(dragLockQuick);
+bindAndroidPerformanceToggle(androidPerformanceInput);
+bindAndroidPerformanceToggle(androidPerformanceQuick);
 
 hapticsInput.addEventListener("change", () => {
   settings.haptics = hapticsInput.checked;
@@ -273,13 +307,20 @@ touchpad.addEventListener("touchstart", (event) => {
     releaseDragLock({ message: "已释放" });
   }
   if (!gesture || event.touches.length >= 3 || gesture.count !== event.touches.length) {
+    const canPromoteToRightClick = isRightClickJoin(event.touches);
     releaseDragLock({ message: "", vibrate: false });
     cancelDragTimer();
-    gesture = makeGesture(event.touches);
+    cancelRightClickTimer();
+    gesture = makeGesture(event.touches, {
+      rightClickCandidate: (!gesture && event.touches.length === 2) || canPromoteToRightClick
+    });
   }
   gesture.maxCount = Math.max(gesture.maxCount, event.touches.length);
   if (gesture.count === 1 && event.touches.length === 1) armDragTimer();
-  else cancelDragTimer();
+  else {
+    cancelDragTimer();
+    if (gesture.count === 2 && gesture.rightClickCandidate) armRightClickTimer();
+  }
   updatePadHint(event.touches.length);
 }, { passive: false });
 
@@ -290,18 +331,22 @@ touchpad.addEventListener("touchmove", (event) => {
     return;
   }
   if (!gesture || gesture.count !== event.touches.length) {
-    gesture = makeGesture(event.touches);
+    cancelRightClickTimer();
+    gesture = makeGesture(event.touches, { rightClickCandidate: false });
     updatePadHint(event.touches.length);
     return;
   }
-  handleGestureMove(event.touches);
+  if (settings.androidPerformance) scheduleTouchMove(event.touches);
+  else handleGestureMove(event.touches);
 }, { passive: false });
 
 touchpad.addEventListener("touchend", (event) => {
   event.preventDefault();
+  flushPendingTouchMove();
   const now = Date.now();
   if (gesture && event.touches.length === 0) {
     cancelDragTimer();
+    cancelRightClickTimer();
     if (gesture.mode === "drag-lock") {
       if (gesture.lockOrigin === "continued" && now - gesture.startedAt < TAP_MAX_MS && gesture.totalDistance < TAP_MAX_DISTANCE) {
         releaseDragLock({ message: "已释放" });
@@ -312,9 +357,16 @@ touchpad.addEventListener("touchend", (event) => {
         haptic(6);
       }
     } else if (gesture.mode === "drag") {
+      flushMotion("drag");
       send({ type: "mouseUp", button: "left" });
       touchpad.classList.remove("dragging");
       haptic(8);
+    } else if (gesture.mode === "right-click") {
+      haptic(4);
+    } else if (isRightClickTap(gesture, now)) {
+      send({ type: "rightClick" });
+      flashHint("右键");
+      haptic(12);
     } else if (gesture.maxCount === 1 && gesture.count === 1 && now - gesture.startedAt < TAP_MAX_MS && gesture.totalDistance < TAP_MAX_DISTANCE) {
       send({ type: "click", button: "left" });
       if (now - lastTap.at < 320 && distanceBetween(gesture.startCenter, lastTap) < 24) {
@@ -324,17 +376,16 @@ touchpad.addEventListener("touchend", (event) => {
         haptic(8);
       }
       lastTap = { at: now, x: gesture.startCenter.x, y: gesture.startCenter.y };
-    } else if (gesture.maxCount === 2 && gesture.count === 2 && !gesture.mode && now - gesture.startedAt < TWO_FINGER_TAP_MAX_MS && gesture.totalDistance < TAP_MAX_DISTANCE) {
-      send({ type: "click", button: "right" });
-      haptic(10);
     }
     touchpad.classList.remove("active");
     if (!dragLock.active) padHint.textContent = "一指移动";
     gesture = null;
   } else if (event.touches.length > 0) {
     cancelDragTimer();
+    cancelRightClickTimer();
     if (gesture) {
       gesture.endedAfterMultiTouch = true;
+      gesture.rightClickCandidate = false;
       gesture.maxCount = Math.max(gesture.maxCount, event.touches.length);
     }
     updatePadHint(event.touches.length);
@@ -342,7 +393,9 @@ touchpad.addEventListener("touchend", (event) => {
 }, { passive: false });
 
 touchpad.addEventListener("touchcancel", () => {
+  cancelPendingTouchMove();
   cancelDragTimer();
+  cancelRightClickTimer();
   releaseDragLock({ message: "", vibrate: false });
   touchpad.classList.remove("active");
   padHint.textContent = "一指移动";
@@ -478,30 +531,97 @@ function queueMove(dx, dy) {
   pendingMove.dx += dx;
   pendingMove.dy += dy;
   const now = performance.now();
-  if (now - lastSent < 8) return;
-  lastSent = now;
-  const payload = {
-    type: "move",
-    dx: Math.round(pendingMove.dx),
-    dy: Math.round(pendingMove.dy)
-  };
-  pendingMove = { dx: 0, dy: 0 };
-  if (payload.dx || payload.dy) send(payload);
+  if (now - lastSent < moveSendInterval()) {
+    scheduleMotionFlush("move");
+    return;
+  }
+  flushMotion("move");
 }
 
 function sendDrag(dx, dy) {
   pendingMove.dx += dx;
   pendingMove.dy += dy;
   const now = performance.now();
-  if (now - lastDragSent < 3) return;
-  lastDragSent = now;
-  const payload = {
-    type: "drag",
-    dx: Math.round(pendingMove.dx),
-    dy: Math.round(pendingMove.dy)
-  };
-  pendingMove = { dx: 0, dy: 0 };
-  if (payload.dx || payload.dy) send(payload);
+  if (now - lastDragSent < dragSendInterval()) {
+    scheduleMotionFlush("drag");
+    return;
+  }
+  flushMotion("drag");
+}
+
+function sendScroll(dy) {
+  pendingScrollY += dy;
+  const now = performance.now();
+  if (now - lastScrollSent < scrollSendInterval() && Math.abs(pendingScrollY) < 1.1) {
+    scheduleScrollFlush();
+    return;
+  }
+  flushScroll();
+}
+
+function flushMotion(kind) {
+  if (pendingMotionFlushTimer) {
+    window.clearTimeout(pendingMotionFlushTimer);
+    pendingMotionFlushTimer = 0;
+  }
+  pendingMotionFlushKind = "";
+  const dx = Math.round(pendingMove.dx);
+  const dy = Math.round(pendingMove.dy);
+  if (!dx && !dy) return;
+  pendingMove.dx -= dx;
+  pendingMove.dy -= dy;
+  if (kind === "drag") {
+    lastDragSent = performance.now();
+    send({ type: "drag", dx, dy });
+  } else {
+    lastSent = performance.now();
+    send({ type: "move", dx, dy });
+  }
+}
+
+function scheduleMotionFlush(kind) {
+  pendingMotionFlushKind = kind;
+  if (pendingMotionFlushTimer) return;
+  const lastAt = kind === "drag" ? lastDragSent : lastSent;
+  const interval = kind === "drag" ? dragSendInterval() : moveSendInterval();
+  const delay = Math.max(0, interval - (performance.now() - lastAt));
+  pendingMotionFlushTimer = window.setTimeout(() => {
+    pendingMotionFlushTimer = 0;
+    flushMotion(pendingMotionFlushKind || kind);
+  }, delay);
+}
+
+function flushScroll() {
+  if (pendingScrollFlushTimer) {
+    window.clearTimeout(pendingScrollFlushTimer);
+    pendingScrollFlushTimer = 0;
+  }
+  lastScrollSent = performance.now();
+  const amount = Math.round(pendingScrollY);
+  if (!amount) return;
+  pendingScrollY -= amount;
+  send({ type: "scroll", dy: amount });
+}
+
+function scheduleScrollFlush() {
+  if (pendingScrollFlushTimer) return;
+  const delay = Math.max(0, scrollSendInterval() - (performance.now() - lastScrollSent));
+  pendingScrollFlushTimer = window.setTimeout(() => {
+    pendingScrollFlushTimer = 0;
+    flushScroll();
+  }, delay);
+}
+
+function moveSendInterval() {
+  return settings.androidPerformance ? 10 : 6;
+}
+
+function dragSendInterval() {
+  return settings.androidPerformance ? 8 : 3;
+}
+
+function scrollSendInterval() {
+  return settings.androidPerformance ? 8 : 4;
 }
 
 function send(payload) {
@@ -675,7 +795,9 @@ function syncFullscreenUi() {
   document.documentElement.classList.toggle("immersive", active);
   [fullscreenButton, fullscreenQuick].forEach((button) => {
     if (!button) return;
-    button.textContent = active ? "退出全屏" : "全屏";
+    const label = button.querySelector(".quick-action-label");
+    if (label) label.textContent = active ? "退出全屏" : "全屏";
+    else button.textContent = active ? "退出全屏" : "全屏";
     button.classList.toggle("active", active);
   });
   if (active) keepBrowserChromeHidden();
@@ -709,12 +831,13 @@ function startHeartbeat() {
   }, 3500);
 }
 
-function makeGesture(touches) {
+function makeGesture(touches, options = {}) {
   const points = getPoints(touches);
   const center = getCenter(points);
   return {
     count: touches.length,
     maxCount: touches.length,
+    rightClickCandidate: options.rightClickCandidate ?? touches.length === 2,
     startedAt: Date.now(),
     startCenter: center,
     lastCenter: center,
@@ -727,8 +850,47 @@ function makeGesture(touches) {
     endedAfterMultiTouch: false,
     lastPinchAt: 0,
     dragTimer: null,
+    rightClickTimer: null,
+    rightClickReady: false,
     fired: false
   };
+}
+
+function snapshotTouches(touches) {
+  return Array.from(touches, (touch) => ({
+    clientX: touch.clientX,
+    clientY: touch.clientY
+  }));
+}
+
+function scheduleTouchMove(touches) {
+  pendingTouchMove = snapshotTouches(touches);
+  if (pendingTouchFrame) return;
+  pendingTouchFrame = requestAnimationFrame(() => {
+    pendingTouchFrame = 0;
+    const touchesToHandle = pendingTouchMove;
+    pendingTouchMove = null;
+    if (!touchesToHandle || !gesture || gesture.count !== touchesToHandle.length) return;
+    handleGestureMove(touchesToHandle);
+  });
+}
+
+function flushPendingTouchMove() {
+  const touchesToHandle = pendingTouchMove;
+  pendingTouchMove = null;
+  if (pendingTouchFrame) {
+    cancelAnimationFrame(pendingTouchFrame);
+    pendingTouchFrame = 0;
+  }
+  if (!touchesToHandle || !gesture || gesture.count !== touchesToHandle.length) return;
+  handleGestureMove(touchesToHandle);
+}
+
+function cancelPendingTouchMove() {
+  pendingTouchMove = null;
+  if (!pendingTouchFrame) return;
+  cancelAnimationFrame(pendingTouchFrame);
+  pendingTouchFrame = 0;
 }
 
 function handleGestureMove(touches) {
@@ -759,16 +921,30 @@ function handleGestureMove(touches) {
     gesture.lastDistance = distance;
     const now = performance.now();
 
+    if (gesture.totalDistance > RIGHT_CLICK_MAX_DISTANCE ||
+        Math.abs(distance - gesture.startDistance) > 5 ||
+        gesture.startDistance < RIGHT_CLICK_MIN_DISTANCE) {
+      gesture.rightClickCandidate = false;
+      cancelRightClickTimer();
+    }
+
     if (!gesture.mode) {
       const horizontalIntent = Math.abs(gesture.cumulativeDx);
       const verticalIntent = Math.abs(gesture.cumulativeDy);
+      const scrollIntent = verticalIntent + horizontalIntent * 0.35;
+      if (gesture.rightClickCandidate && scrollIntent > RIGHT_CLICK_SCROLL_GUARD_DISTANCE) {
+        gesture.rightClickCandidate = false;
+        cancelRightClickTimer();
+      }
       if (isRightEdgeSwipe(gesture)) {
+        cancelRightClickTimer();
         gesture.mode = "notification";
         gesture.fired = true;
         fireSystemGesture({ type: "notification" }, "通知中心");
         return;
       }
       if (horizontalIntent > 34 && horizontalIntent > verticalIntent * 1.35) {
+        cancelRightClickTimer();
         gesture.mode = "page";
         gesture.fired = true;
         send({ type: "shortcut", combo: gesture.cumulativeDx > 0 ? "cmd+[" : "cmd+]" });
@@ -776,12 +952,13 @@ function handleGestureMove(touches) {
         haptic(14);
         return;
       }
-      const scrollIntent = verticalIntent + horizontalIntent * 0.35;
       const pinchIntent = Math.abs(distance - gesture.startDistance);
       if (pinchIntent > 9 && pinchIntent > scrollIntent * 0.65) {
+        cancelRightClickTimer();
         gesture.mode = "pinch";
         haptic(5);
-      } else if (scrollIntent > 8) {
+      } else if (scrollIntent > SCROLL_START_DISTANCE) {
+        cancelRightClickTimer();
         gesture.mode = "scroll";
       } else {
         return;
@@ -799,7 +976,7 @@ function handleGestureMove(touches) {
     if (gesture.mode === "page") return;
 
     const direction = settings.naturalScroll ? -1 : 1;
-    send({ type: "scroll", dy: Math.round(dy * direction * 2.8) });
+    sendScroll(dy * direction * settings.scrollSpeed);
     return;
   }
 
@@ -873,8 +1050,47 @@ function cancelDragTimer() {
   gesture.dragTimer = null;
 }
 
+function armRightClickTimer() {
+  cancelRightClickTimer();
+  gesture.rightClickTimer = window.setTimeout(() => {
+    if (gesture) gesture.rightClickTimer = null;
+    if (!gesture ||
+        !gesture.rightClickCandidate ||
+        gesture.count !== 2 ||
+        gesture.maxCount !== 2 ||
+        gesture.mode ||
+        gesture.totalDistance > RIGHT_CLICK_MAX_DISTANCE ||
+        gesture.startDistance < RIGHT_CLICK_MIN_DISTANCE ||
+        gesture.endedAfterMultiTouch) {
+      return;
+    }
+    gesture.rightClickReady = true;
+  }, RIGHT_CLICK_HOLD_MS);
+}
+
+function cancelRightClickTimer() {
+  if (!gesture || !gesture.rightClickTimer) return;
+  window.clearTimeout(gesture.rightClickTimer);
+  gesture.rightClickTimer = null;
+}
+
+function isRightClickTap(activeGesture, now) {
+  const duration = now - activeGesture.startedAt;
+  return activeGesture.rightClickCandidate &&
+    activeGesture.count === 2 &&
+    activeGesture.maxCount === 2 &&
+    !activeGesture.mode &&
+    !activeGesture.endedAfterMultiTouch &&
+    activeGesture.startDistance >= RIGHT_CLICK_MIN_DISTANCE &&
+    activeGesture.totalDistance <= RIGHT_CLICK_MAX_DISTANCE &&
+    Math.abs(activeGesture.lastDistance - activeGesture.startDistance) <= 5 &&
+    duration >= RIGHT_CLICK_HOLD_MS &&
+    duration <= RIGHT_CLICK_TAP_MAX_MS;
+}
+
 function releaseDragLock(options = {}) {
   if (!dragLock.active) return;
+  flushMotion("drag");
   send({ type: "mouseUp", button: "left" });
   dragLock.active = false;
   touchpad.classList.remove("dragging");
@@ -900,6 +1116,16 @@ function getAverageDistance(points, center) {
 
 function distanceBetween(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function isRightClickJoin(touches) {
+  return Boolean(gesture) &&
+    gesture.count === 1 &&
+    touches.length === 2 &&
+    !gesture.mode &&
+    !gesture.endedAfterMultiTouch &&
+    gesture.totalDistance < 3 &&
+    Date.now() - gesture.startedAt <= RIGHT_CLICK_JOIN_MAX_MS;
 }
 
 function isRightEdgeSwipe(activeGesture) {
@@ -929,15 +1155,22 @@ function flashHint(text) {
 
 function syncSettingsUi() {
   const speedLabel = formatSpeed(settings.speed);
+  const scrollSpeedLabel = formatSpeed(settings.scrollSpeed);
   speedInput.value = String(settings.speed);
   speedQuick.value = String(settings.speed);
+  if (scrollSpeedInput) scrollSpeedInput.value = String(settings.scrollSpeed);
+  if (scrollSpeedQuick) scrollSpeedQuick.value = String(settings.scrollSpeed);
   speedValue.textContent = speedLabel;
   speedQuickValue.textContent = speedLabel;
+  if (scrollSpeedValue) scrollSpeedValue.textContent = scrollSpeedLabel;
+  if (scrollSpeedQuickValue) scrollSpeedQuickValue.textContent = scrollSpeedLabel;
   naturalScrollInput.checked = settings.naturalScroll;
   defaultLandscapeInput.checked = settings.defaultLandscape;
   defaultLandscapeQuick.checked = settings.defaultLandscape;
   dragLockEnabledInput.checked = settings.dragLockEnabled;
   dragLockQuick.checked = settings.dragLockEnabled;
+  if (androidPerformanceInput) androidPerformanceInput.checked = settings.androidPerformance;
+  if (androidPerformanceQuick) androidPerformanceQuick.checked = settings.androidPerformance;
   hapticsInput.checked = settings.haptics;
 }
 
@@ -947,9 +1180,20 @@ function setSpeed(value) {
   syncSettingsUi();
 }
 
+function setScrollSpeed(value) {
+  settings.scrollSpeed = clampScrollSpeed(value);
+  localStorage.setItem("mac-console-scroll-speed", String(settings.scrollSpeed));
+  syncSettingsUi();
+}
+
 function clampSpeed(value) {
   if (!Number.isFinite(value)) return 1.25;
   return Math.min(SPEED_MAX, Math.max(SPEED_MIN, Math.round(value * 20) / 20));
+}
+
+function clampScrollSpeed(value) {
+  if (!Number.isFinite(value)) return SCROLL_SPEED_DEFAULT;
+  return Math.min(SCROLL_SPEED_MAX, Math.max(SCROLL_SPEED_MIN, Math.round(value * 10) / 10));
 }
 
 function formatSpeed(value) {
@@ -978,8 +1222,32 @@ function setDragLockEnabled(value) {
   if (!value) releaseDragLock({ message: "拖拽锁定已关闭" });
 }
 
+function setAndroidPerformanceMode(value) {
+  settings.androidPerformance = value;
+  if (androidPerformanceInput) androidPerformanceInput.checked = value;
+  if (androidPerformanceQuick) androidPerformanceQuick.checked = value;
+  localStorage.setItem("mac-console-android-performance", String(value));
+  pendingMove = { dx: 0, dy: 0 };
+  pendingScrollY = 0;
+  lastSent = 0;
+  lastDragSent = 0;
+  lastScrollSent = 0;
+  cancelPendingTouchMove();
+  flashHint(value ? "安卓性能模式" : "标准模式");
+}
+
 function bindDragLockToggle(input) {
   const sync = () => setDragLockEnabled(input.checked);
+  const syncAfterNativeToggle = () => window.setTimeout(sync, 0);
+  input.addEventListener("change", sync);
+  input.addEventListener("input", sync);
+  input.addEventListener("click", syncAfterNativeToggle);
+  input.addEventListener("touchend", syncAfterNativeToggle, { passive: true });
+}
+
+function bindAndroidPerformanceToggle(input) {
+  if (!input) return;
+  const sync = () => setAndroidPerformanceMode(input.checked);
   const syncAfterNativeToggle = () => window.setTimeout(sync, 0);
   input.addEventListener("change", sync);
   input.addEventListener("input", sync);
@@ -1024,7 +1292,7 @@ function setQuickPanelOpen(open) {
   quickBackdrop.classList.toggle("hidden", !open);
   quickToggle.classList.toggle("open", open);
   quickToggle.setAttribute("aria-expanded", String(open));
-  quickToggle.textContent = open ? "×" : "...";
+  quickToggle.setAttribute("aria-label", open ? "关闭快捷控制" : "更多控制");
 }
 
 document.addEventListener("contextmenu", (event) => {

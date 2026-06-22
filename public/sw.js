@@ -1,10 +1,10 @@
-const CACHE_NAME = "mac-console-v37";
+const CACHE_NAME = "mac-console-v50";
 const ASSETS = [
-  "/?v=37",
-  "/index.html?v=37",
-  "/styles.css?v=37",
-  "/app.js?v=37",
-  "/manifest.webmanifest?v=37",
+  "/?v=50",
+  "/index.html?v=50",
+  "/styles.css?v=50",
+  "/app.js?v=50",
+  "/manifest.webmanifest?v=50",
   "/icon-192.png",
   "/icon-512.png",
   "/icon.svg"

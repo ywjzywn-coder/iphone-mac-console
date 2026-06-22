@@ -53,7 +53,9 @@ Portrait and landscape are both supported. The touchpad stays as the main full-s
 
 Enable Default Landscape in Settings or the floating drawer if you mostly use the app sideways. Browsers that support the Screen Orientation API will try to lock landscape; older iOS/Safari builds may only show a rotate hint because they do not allow web apps to force orientation.
 
-Cursor speed is adjustable from Settings or the floating drawer, from `0.30x` to `4x`.
+Cursor speed is adjustable from Settings or the floating drawer, from `0.30x` to `4x`. Scroll speed is adjustable separately from `0.8x` to `8x`.
+
+Android Performance Mode is available in Settings and the floating drawer. It coalesces touch moves by animation frame and uses calmer send intervals for Android Chrome devices that feel jittery.
 
 Use the Full Screen button in the header or the floating drawer to request browser fullscreen. On iPhone Safari, where web pages cannot always force true fullscreen, the app falls back to an immersive mode that keeps the touchpad stretched to the visible screen and nudges the browser chrome out of the way.
 
@@ -63,7 +65,7 @@ Use the Full Screen button in the header or the floating drawer to request brows
 - One finger tap: left click.
 - One finger double tap: double click.
 - One finger long press then move: drag windows, files, sliders, or selected text.
-- Two finger tap: right click.
+- Two finger press-and-hold: right click.
 - Two finger drag: scroll.
 - Two finger horizontal swipe: browser/app back or forward with `Command` + `[` / `]`.
 - Two finger pinch: zoom in or out using `Command` + `+` / `-`.
